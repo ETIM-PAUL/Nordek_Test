@@ -2,17 +2,26 @@
 pragma solidity 0.8.21;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
-contract Crowdsale is ERC20 {
+contract Crowdsale {
+    using SafeMath for uint256;
+ERC20 public token;
     address owner;
-    uint8 startDate;
-    uint8 endDate;
-    uint8 cliffDuration;
-    uint8 pricePerToken;
-    uint immutable totalSupplyLimit;
+    uint startDate;
+    uint endDate;
+    uint cliffDuration;
+    uint vestingPeriod;
+    uint pricePerToken;
+    uint public totalReceipt;
     bool paused;
 
-    mapping (address => receipt) public crowdsale_participants
+    struct TokensPurchaser {
+        uint amount;
+        uint purchasedTime;
+    }
+
+    mapping (address => TokensPurchaser) public crowdsale_participants;
 
     error OnlyOwner();
     error InvalidAddress();
@@ -22,22 +31,16 @@ contract Crowdsale is ERC20 {
     error CrowdsaleEnded();
     error TotalSupplyWillBeExceeded();
 
-    event TokensReleased();
+    event TokensReleased(uint);
 
-    constructor(tokenName, tokenSymbol, _totalSupplyLimit, _pricePerToken, _startDate, _cliffDuration, _endDate) ERC20(tokenName, tokenSymbol) {
+    constructor(address _token, uint _pricePerToken, uint _startDate, uint _cliffDuration, uint _vestingPeriod, uint _endDate) {
         owner = msg.sender;
-        totalSupplyLimit = _totalSupplyLimit;
         pricePerToken = _pricePerToken;
         startDate = _startDate;
         endDate = _endDate;
         cliffDuration=_cliffDuration;
-    }
-
-    uint ExpectedAmount = 10_000 ether;
-    uint precision = 1e32;
-
-    function decimals() public view override returns (uint8) {
-        return 8;
+        vestingPeriod=_vestingPeriod;
+        token = ERC20(_token);
     }
 
     function buyTokens() external payable {
@@ -57,39 +60,44 @@ contract Crowdsale is ERC20 {
         //this calculates the amount you will get based on the ethers you are paying
         uint amount = msg.value / pricePerToken;
 
-        if((totalSupply() + amount)  > TOTAL_SUPPLY_LIMIT){
-            revert TotalSupplyWillBeExceeded();
-        }
 
         //here, we give a receipt to the buyer
-        crowdsale_participants[msg.sender] = receipt + amount;
+        TokensPurchaser storage purchaser = crowdsale_participants[msg.sender];
+        purchaser.amount = purchaser.amount + amount;
+
+        // Set vesting start time if it hasn't been set yet
+        if (purchaser.purchasedTime == 0) {
+            purchaser.purchasedTime = block.timestamp;
+        }
+        totalReceipt+amount;
     }
 
-    function release() external {
+    function getTokensRelease() external {
         if(paused){
             revert CrowdsaleHalted();
         }
-        uint receipt = crowdsale_participants[msg.sender]
-        uint256 vested = vestedAmount(receipt);
-        require(vested > receipt, "No tokens available for release");
+        TokensPurchaser storage purchaser = crowdsale_participants[msg.sender];
+        require(purchaser.amount > 0, "No tokens to release");
+        require(block.timestamp >= purchaser.purchasedTime + cliffDuration, "Cliff period has not passed yet");
 
-        uint256 amount = vested - receipt;
-        released = receipt + amount;
+        uint256 tokensReleased = vestedAmount(purchaser);
+        purchaser.amount = purchaser.amount.sub(tokensReleased);
 
-        //here, we release the token
-        _mint(msg.sender, amount);
-
-        emit TokensReleased(amount);
+        token.transfer(msg.sender, tokensReleased);
+        emit TokensReleased(tokensReleased);
     }
 
-    function vestedAmount(uint _receipt) internal view returns (uint256) {
-        if (block.timestamp < cliffDuration) {
-            return 0;
-        } else if (block.timestamp >= (startDate + endDate)) {
-            return _receipt;
-        } else {
-            return _receipt * (block.timestamp - (startDate)) / (endDate);
+    function vestedAmount(TokensPurchaser memory purchaser) internal view returns (uint256) {
+         uint256 timeSinceStart = block.timestamp.sub(purchaser.purchasedTime);
+        uint256 vestedTokens = 0;
+
+        if (timeSinceStart >= cliffDuration) {
+            uint256 vestedPeriod = timeSinceStart.sub(cliffDuration);
+            uint256 totalVestingPeriod = vestingPeriod.sub(cliffDuration);
+            vestedTokens = (purchaser.amount).mul(vestedPeriod).div(totalVestingPeriod);
         }
+
+        return vestedTokens;
     }
 
     function pauseContract() external {
@@ -106,16 +114,25 @@ contract Crowdsale is ERC20 {
     paused = false;
     }
 
+    function returnCurrentTime()
+        external
+        view
+        returns (uint time)
+    {
+        //This returns the amount of ethers our contract holds
+        time = block.timestamp;
+    }
     function returnBalance()
         external
         view
-        returns (uint etherbalance, uint tokenBalance)
+        returns (uint etherbalance)
     {
         //This returns the amount of ethers our contract holds
         etherbalance = address(this).balance;
+    }
 
-        //This returns the amount of tokens in our contract
-        tokenBalance = balanceOf(address(this));
+    function getSupply() view external returns (uint supply) {
+        supply = token.totalSupply();
     }
 
     function withdrawEther(address payee) external {
@@ -134,11 +151,8 @@ contract Crowdsale is ERC20 {
         require(success, "transferFailed");
     }
 
-    function getSupply() view external {
-        totalSupply();
-    }
     function expectedTokens(uint _amountInEth) view external returns (uint _expectedTokens) {
-        _expectedTokens = _amountInEth / pricePerToken
+        _expectedTokens = _amountInEth / pricePerToken;
     }
 
     receive() external payable {
