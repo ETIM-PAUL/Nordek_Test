@@ -7,10 +7,12 @@ import {CSD} from "../src/CSD.sol";
 contract CSDTest is Test {
     CSD public csd;
     address user1;
+    address user2;
 
     function setUp() public {
         csd = new CSD("Crowdsale","CSD",100e18);
         user1 = vm.addr(1);
+        user2 = vm.addr(2);
     }
 
     function testOnlyOwnerRevert() public {
@@ -40,6 +42,13 @@ contract CSDTest is Test {
             )
         );
     csd.mint(user1,91e18);
+    }
+
+    function testTransfer() public {
+    csd.mint(user1,1e18);
+    vm.startPrank(user1);
+    bool success = csd.transfer(user2, 1e17);
+    assertTrue(success);
     }
 
     function testMint() public {
