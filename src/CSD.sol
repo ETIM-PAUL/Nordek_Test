@@ -32,4 +32,8 @@ contract CSD is ERC20 {
         }
         _mint(reciever, amount);
     }
+
+    function balanceOfUser(address _user) external returns (uint bal)  {
+        bal = balanceOf(_user);
+    }
 }

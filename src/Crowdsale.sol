@@ -2,10 +2,8 @@
 pragma solidity 0.8.21;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract Crowdsale {
-    using SafeMath for uint256;
 ERC20 public token;
     address owner;
     uint startDate;
@@ -81,20 +79,20 @@ ERC20 public token;
         require(block.timestamp >= purchaser.purchasedTime + cliffDuration, "Cliff period has not passed yet");
 
         uint256 tokensReleased = vestedAmount(purchaser);
-        purchaser.amount = purchaser.amount.sub(tokensReleased);
+        purchaser.amount = purchaser.amount - tokensReleased;
 
         token.transfer(msg.sender, tokensReleased);
         emit TokensReleased(tokensReleased);
     }
 
     function vestedAmount(TokensPurchaser memory purchaser) internal view returns (uint256) {
-         uint256 timeSinceStart = block.timestamp.sub(purchaser.purchasedTime);
+         uint256 timeSinceStart = block.timestamp - purchaser.purchasedTime;
         uint256 vestedTokens = 0;
 
         if (timeSinceStart >= cliffDuration) {
-            uint256 vestedPeriod = timeSinceStart.sub(cliffDuration);
-            uint256 totalVestingPeriod = vestingPeriod.sub(cliffDuration);
-            vestedTokens = (purchaser.amount).mul(vestedPeriod).div(totalVestingPeriod);
+            uint256 vestedPeriod = timeSinceStart - cliffDuration;
+            uint256 totalVestingPeriod = vestingPeriod - cliffDuration ;
+            vestedTokens = (purchaser.amount * vestedPeriod)/(totalVestingPeriod);
         }
 
         return vestedTokens;
