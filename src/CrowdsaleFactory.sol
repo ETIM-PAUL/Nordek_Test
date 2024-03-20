@@ -9,9 +9,10 @@ contract CrowdsaleFactory {
     error ZeroTotalSupply();
     error ZeroPrice();
     error InvalidStartDate();
+    error InvalidCliffDuration();
     error InvalidEndDate();
 
-    function createCrowdsale(string calldata _tokenName, string calldata _tokenSymbol, uint _totalSupplyLimit, uint _pricePerToken, uint _startDate, uint _endDate)
+    function createCrowdsale(string calldata _tokenName, string calldata _tokenSymbol, uint _totalSupplyLimit, uint _pricePerToken, uint _startDate, uint _endDate, uint _cliffDuration)
         external
         returns (Crowdsale crowdsale)
     {
@@ -28,8 +29,28 @@ contract CrowdsaleFactory {
             revert InvalidStartDate();
         }
         
-        if(_startDate == 0){
+        if(_endDate == 0){
             revert InvalidEndDate();
+        }
+
+        if(_endDate < block.timestamp){
+            revert InvalidEndDate();
+        }
+
+        if(_endDate < _startDate){
+            revert InvalidEndDate();
+        }
+
+        if(_startDate > _endDate){
+            revert InvalidStartDate();
+        }
+
+        if(_startDate < block.timestamp){
+            revert InvalidStartDate();
+        }
+
+        if (_cliffDuration <= _endDate){
+            revert InvalidCliffDuration();
         }
         
         crowdsale = new Crowdsale(_tokenName, _tokenSymbol, _totalSupplyLimit, _pricePerToken, _startDate, _endDate);

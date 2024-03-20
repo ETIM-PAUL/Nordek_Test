@@ -7,9 +7,12 @@ contract Crowdsale is ERC20 {
     address owner;
     uint8 startDate;
     uint8 endDate;
+    uint8 cliffDuration;
     uint8 pricePerToken;
     uint immutable totalSupplyLimit;
     bool paused;
+
+    mapping (address => receipt) public crowdsale_participants
 
     error OnlyOwner();
     error InvalidAddress();
@@ -19,12 +22,15 @@ contract Crowdsale is ERC20 {
     error CrowdsaleEnded();
     error TotalSupplyWillBeExceeded();
 
-    constructor(tokenName, tokenSymbol, _totalSupplyLimit, _pricePerToken, _startDate, _endDate) ERC20(tokenName, tokenSymbol) {
+    event TokensReleased();
+
+    constructor(tokenName, tokenSymbol, _totalSupplyLimit, _pricePerToken, _startDate, _cliffDuration, _endDate) ERC20(tokenName, tokenSymbol) {
         owner = msg.sender;
         totalSupplyLimit = _totalSupplyLimit;
         pricePerToken = _pricePerToken;
         startDate = _startDate;
         endDate = _endDate;
+        cliffDuration=_cliffDuration;
     }
 
     uint ExpectedAmount = 10_000 ether;
@@ -34,7 +40,7 @@ contract Crowdsale is ERC20 {
         return 8;
     }
 
-    function buyTokens() external payable returns () {
+    function buyTokens() external payable {
         if(msg.value == 0){
             revert ZeroAmount();
         }
@@ -55,22 +61,51 @@ contract Crowdsale is ERC20 {
             revert TotalSupplyWillBeExceeded();
         }
 
-        //here, we mint the amount to the buyer
-        _mint(msg.sender, amount);
+        //here, we give a receipt to the buyer
+        crowdsale_participants[msg.sender] = receipt + amount;
     }
 
-function pauseContract() external {
+    function release() external {
+        if(paused){
+            revert CrowdsaleHalted();
+        }
+        uint receipt = crowdsale_participants[msg.sender]
+        uint256 vested = vestedAmount(receipt);
+        require(vested > receipt, "No tokens available for release");
+
+        uint256 amount = vested - receipt;
+        released = receipt + amount;
+
+        //here, we release the token
+        _mint(msg.sender, amount);
+
+        emit TokensReleased(amount);
+    }
+
+    function vestedAmount(uint _receipt) internal view returns (uint256) {
+        if (block.timestamp < cliffDuration) {
+            return 0;
+        } else if (block.timestamp >= (startDate + endDate)) {
+            return _receipt;
+        } else {
+            return _receipt * (block.timestamp - (startDate)) / (endDate);
+        }
+    }
+
+    function pauseContract() external {
     if(msg.sender != owner){
             revert OnlyOwner();
         }
     paused = true;
-}
-function unPauseContract() external {
+    }
+
+    function unPauseContract() external {
     if(msg.sender != owner){
             revert OnlyOwner();
         }
     paused = false;
-}
+    }
+
     function returnBalance()
         external
         view
@@ -84,9 +119,13 @@ function unPauseContract() external {
     }
 
     function withdrawEther(address payee) external {
+        if(payee == address(0)){
+            revert InvalidAddress();
+        }
         // this checks to make sure only contract owner can withdraw;
-        require(payee != address(0), "Invalid Address");
-        require(msg.sender == owner, "Only Owner");
+        if(msg.sender != owner){
+            revert OnlyOwner();
+        }
 
         //this transfers the ethers to the account that calls the functions
         (bool success, ) = payable(payee).call{

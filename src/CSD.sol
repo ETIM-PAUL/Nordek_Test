@@ -5,15 +5,16 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract CSD is ERC20 {
     address owner;
-    uint constant TOTAL_SUPPLY_LIMIT = 1000e18;
+    uint immutable TOTAL_SUPPLY_LIMIT = 1000e18;
 
     error OnlyOwner();
     error InvalidAddress();
     error ZeroAmount();
     error TotalSupplyWillBeExceeded();
 
-    constructor() ERC20("Crowsdale", "CSD") {
+    constructor(tokenName, tokenSymbol, totalSupplyLimit) ERC20(tokenName, tokenSymbol) {
         owner = msg.sender;
+        immutable = totalSupplyLimit;
     }
 
     function mint(address reciever, uint amount) external {
