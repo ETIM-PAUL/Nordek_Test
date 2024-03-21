@@ -73,7 +73,7 @@ ERC20 public token;
         TokensPurchaser storage purchaser = crowdsale_participants[_purchaser];
         purchaser.amount = purchaser.amount + amount;
 
-        // Set vesting start time if it hasn't been set yet
+        // Set purchase time if it hasn't been set yet
         if (purchaser.purchasedTime == 0) {
             purchaser.purchasedTime = block.timestamp;
         }
@@ -126,15 +126,6 @@ ERC20 public token;
             revert OnlyOwner();
         }
     paused = false;
-    }
-
-    function returnBalance()
-        external
-        view
-        returns (uint etherbalance)
-    {
-        //This returns the amount of ethers our contract holds
-        etherbalance = address(this).balance;
     }
 
     function withdrawEther(address payee) external {
