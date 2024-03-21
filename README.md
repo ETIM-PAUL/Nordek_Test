@@ -69,12 +69,13 @@ the expectedTokens function allows accounts to see a preview of how much they wi
 ### To deploy and verify for CSD ERC20 contract
 
 ###### Run this command "forge init"
-##### Run this command "forge create --rpc-url urdesiredchainRPC \
+##### Run this command 
+forge create --rpc-url urdesiredchainRPC \
     --constructor-args tokenName tokenSymbol totalSupplyLimit \
     --private-key yourPrivateKey \
     --etherscan-api-key yourEtherscanKey \
     --verify \
-    src/CSD.sol:CSD" 
+    src/CSD.sol:CSD
     
     to run deploy and verify CSD ERC20 contract
 
@@ -82,12 +83,13 @@ the expectedTokens function allows accounts to see a preview of how much they wi
 ### To deploy and verify for CrowdsaleFactory contract
 
 ###### Run this command "forge init"
-##### Run this command "forge create --rpc-url urdesiredchainRPC \
+##### Run this command
+forge create --rpc-url urdesiredchainRPC \
     --constructor-args erc20Address pricePerToken startDate cliffDuration vestingPeriod endDate \
     --private-key yourPrivateKey \
     --etherscan-api-key yourEtherscanKey \
     --verify \
-    src/CrowdsaleFactory.sol:CrowdsaleFactory" 
+    src/CrowdsaleFactory.sol:CrowdsaleFactory
     
     to run deploy and verify CrowdsaleFactory contract
 
