@@ -69,8 +69,7 @@ contract CrowdsaleFactoryTest is Test {
     }
 
     function testCreateCrowdsale() public {
-      bool _success = crowdsaleFactory.createCrowdsale(address(csd), 1e17, currentTime + 180 seconds, currentTime + 2 days, currentTime + 5 days, currentTime + 3600 seconds);
-      assertTrue(_success);
+      crowdsaleFactory.createCrowdsale(address(csd), 1e17, currentTime + 180 seconds, currentTime + 2 days, currentTime + 5 days, currentTime + 3600 seconds);
     }
 
 }

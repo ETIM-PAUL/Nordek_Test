@@ -13,7 +13,7 @@ contract CrowdsaleFactory {
 
     function createCrowdsale(address _token, uint _pricePerToken, uint _startDate, uint _cliffDuration, uint _vestingPeriod, uint _endDate)
         external
-        returns (bool success)
+        returns (Crowdsale)
     {
         if(_pricePerToken == 0){
             revert ZeroPrice();
@@ -35,7 +35,7 @@ contract CrowdsaleFactory {
             revert InvalidVestingPeriod();
         }
         
-        Crowdsale crowdsale = new Crowdsale(_token, _pricePerToken, _startDate, _cliffDuration, _vestingPeriod, _endDate);
-    success = true;
+        Crowdsale crowdsale = new Crowdsale(msg.sender, _token, _pricePerToken, _startDate, _cliffDuration, _vestingPeriod, _endDate);
+    return crowdsale;
     }
 }

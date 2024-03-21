@@ -24,15 +24,19 @@ ERC20 public token;
     error OnlyOwner();
     error InvalidAddress();
     error ZeroAmount();
+    error InsufficientPrice();
     error CrowdsaleHalted();
     error CrowdsaleNotStarted();
     error CrowdsaleEnded();
-    error TotalSupplyWillBeExceeded();
+    error CliffPeriodNotOver();
+    error NoTokenForReleased();
+    error ExcessReleaseTokensRevert();
 
-    event TokensReleased(uint);
+    event TokensPurchased(address,uint);
+    event TokensReleased(address,uint);
 
-    constructor(address _token, uint _pricePerToken, uint _startDate, uint _cliffDuration, uint _vestingPeriod, uint _endDate) {
-        owner = msg.sender;
+    constructor(address _owner, address _token, uint _pricePerToken, uint _startDate, uint _cliffDuration, uint _vestingPeriod, uint _endDate) {
+        owner = _owner;
         pricePerToken = _pricePerToken;
         startDate = _startDate;
         endDate = _endDate;
@@ -41,9 +45,15 @@ ERC20 public token;
         token = ERC20(_token);
     }
 
-    function buyTokens() external payable {
+    function buyTokens(address _purchaser) external payable {
         if(msg.value == 0){
             revert ZeroAmount();
+        }
+        if(msg.value < pricePerToken){
+            revert InsufficientPrice();
+        }
+        if(_purchaser == address(0)){
+            revert InvalidAddress();
         }
         if(paused){
             revert CrowdsaleHalted();
@@ -60,7 +70,7 @@ ERC20 public token;
 
 
         //here, we give a receipt to the buyer
-        TokensPurchaser storage purchaser = crowdsale_participants[msg.sender];
+        TokensPurchaser storage purchaser = crowdsale_participants[_purchaser];
         purchaser.amount = purchaser.amount + amount;
 
         // Set vesting start time if it hasn't been set yet
@@ -68,33 +78,39 @@ ERC20 public token;
             purchaser.purchasedTime = block.timestamp;
         }
         totalReceipt+amount;
+        emit TokensPurchased(_purchaser,amount);
     }
 
-    function getTokensRelease() external {
+    function getTokensRelease(address _purchaser) external {
         if(paused){
             revert CrowdsaleHalted();
         }
-        TokensPurchaser storage purchaser = crowdsale_participants[msg.sender];
-        require(purchaser.amount > 0, "No tokens to release");
-        require(block.timestamp >= purchaser.purchasedTime + cliffDuration, "Cliff period has not passed yet");
+        if(_purchaser == address(0)){
+            revert InvalidAddress();
+        }
+        TokensPurchaser storage purchaser = crowdsale_participants[_purchaser];
+        uint256 tokensReleased = vestedAmount(purchaser.amount, purchaser.purchasedTime);
+        if(block.timestamp < cliffDuration){revert CliffPeriodNotOver();}
+        if(tokensReleased <= 0){revert NoTokenForReleased();}
+        if(purchaser.amount <= 0){revert ExcessReleaseTokensRevert();}
 
-        uint256 tokensReleased = vestedAmount(purchaser);
-        purchaser.amount = purchaser.amount - tokensReleased;
+        crowdsale_participants[_purchaser].amount = purchaser.amount - tokensReleased;
 
-        token.transfer(msg.sender, tokensReleased);
-        emit TokensReleased(tokensReleased);
+        token.transfer(_purchaser, tokensReleased*1e18);
+        emit TokensReleased(_purchaser, tokensReleased * 1e18);
     }
 
-    function vestedAmount(TokensPurchaser memory purchaser) internal view returns (uint256) {
-         uint256 timeSinceStart = block.timestamp - purchaser.purchasedTime;
+    function vestedAmount(uint amount, uint purchasedTime) internal view returns (uint256) {
+         uint256 timeSinceStart = block.timestamp - purchasedTime;
         uint256 vestedTokens = 0;
 
-        if (timeSinceStart >= cliffDuration) {
-            uint256 vestedPeriod = timeSinceStart - cliffDuration;
-            uint256 totalVestingPeriod = vestingPeriod - cliffDuration ;
-            vestedTokens = (purchaser.amount * vestedPeriod)/(totalVestingPeriod);
+        if (timeSinceStart < vestingPeriod) {
+            // Calculate the amount of tokens vested based on the vesting duration
+            vestedTokens = (amount * timeSinceStart) / vestingPeriod;
+        } else {
+            // All tokens have vested after the vesting duration
+            vestedTokens = amount;
         }
-
         return vestedTokens;
     }
 
@@ -112,14 +128,6 @@ ERC20 public token;
     paused = false;
     }
 
-    function returnCurrentTime()
-        external
-        view
-        returns (uint time)
-    {
-        //This returns the amount of ethers our contract holds
-        time = block.timestamp;
-    }
     function returnBalance()
         external
         view
@@ -127,10 +135,6 @@ ERC20 public token;
     {
         //This returns the amount of ethers our contract holds
         etherbalance = address(this).balance;
-    }
-
-    function getSupply() view external returns (uint supply) {
-        supply = token.totalSupply();
     }
 
     function withdrawEther(address payee) external {
